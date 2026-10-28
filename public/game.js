@@ -122,7 +122,8 @@ function avatarText(avatar) {
 }
 
 function renderLobby(isHost) {
-  $("#playerCount").textContent = `${room.players.length} / 8`;
+  const humanCount = room.players.filter((player) => !player.isBot).length;
+  $("#playerCount").textContent = `${humanCount} / 8`;
   const list = $("#playerList");
   list.replaceChildren();
   room.players.forEach((player) => {
@@ -150,10 +151,13 @@ function renderLobby(isHost) {
     }
     list.append(card);
   });
-  $("#addBotButton").classList.toggle("hidden", !isHost);
-  $("#addBotButton").disabled = room.players.length >= 8;
+  $("#addBotButton").classList.add("hidden");
   $("#startButton").classList.toggle("hidden", !isHost);
-  $("#startButton").disabled = room.players.length < 2;
+  $("#startButton").disabled = humanCount < 1;
+  $("#startButton").textContent = humanCount === 1 ? "Start solo memory challenge" : "Begin the team peril";
+  $("#modeNote").innerHTML = humanCount === 1
+    ? "<span>◆</span><p><b>Solo challenge:</b> Your first LOOK and MOVE are untimed practice. Then the memory timer begins.</p>"
+    : "<span>✦</span><p><b>Team mode:</b> Every device reveals different dangers. Ping what only you can see before the navigator moves.</p>";
   $("#waitingText").classList.toggle("hidden", isHost);
 }
 
@@ -169,6 +173,28 @@ function renderGame() {
 function renderVision() {
   const container = $("#visionBadges");
   container.replaceChildren();
+  if (game.soloMode) {
+    const looking = game.soloStage === "look";
+    $("#visionKicker").textContent = looking ? "LOOK — DANGERS VISIBLE" : "REMEMBER — DANGERS HIDDEN";
+    $("#visionTitle").textContent = looking ? "Study every danger." : "Move from memory.";
+    $("#visionWarning").textContent = looking
+      ? (game.soloPractice
+        ? "Take as long as you need. Press Ready when you have memorized the danger tiles."
+        : "The dangers disappear when the LOOK timer reaches zero. Press Ready sooner if you remember them.")
+      : `You have ${game.soloPingsLeft} memory marker${game.soloPingsLeft === 1 ? "" : "s"} and one move.`;
+    const badge = document.createElement("div");
+    badge.className = "vision-badge";
+    const icon = document.createElement("span");
+    icon.style.background = looking ? "#ffd166" : "#aa82ff";
+    icon.textContent = looking ? "👀" : "?";
+    const label = document.createElement("b");
+    label.textContent = looking ? "Remember the danger tiles" : "Symbols are now hidden";
+    badge.append(icon, label); container.append(badge);
+    return;
+  }
+  $("#visionKicker").textContent = "YOUR PRIVATE VIEW";
+  $("#visionTitle").textContent = "You can see:";
+  $("#visionWarning").textContent = "Other scouts cannot see these hazards unless someone pings them.";
   game.myVision.forEach((vision) => {
     const badge = document.createElement("div");
     badge.className = "vision-badge";
@@ -193,6 +219,8 @@ function renderBoard() {
   const hazards = new Map(game.board.hazards.map((hazard) => [cellKey(hazard.x, hazard.y), hazard]));
   const trail = new Set(game.trail.map((tile) => cellKey(tile.x, tile.y)));
   const pingsByTile = new Map();
+  const uncollectedCores = new Map((game.cores || []).filter((core) => !core.collected).map((core) => [cellKey(core.x, core.y), core]));
+  const coresRemaining = uncollectedCores.size;
   game.pings.forEach((ping) => {
     const key = cellKey(ping.x, ping.y);
     if (!pingsByTile.has(key)) pingsByTile.set(key, []);
@@ -222,8 +250,12 @@ function renderBoard() {
         icon.title = hazard.private ? `${meta.label} — only your screen reveals this` : `${meta.label} — revealed to everyone`;
         tile.append(icon);
       }
+      if (uncollectedCores.has(key)) {
+        const core = document.createElement("span"); core.className = "tile-icon core-pickup"; core.textContent = "◆"; core.title = "Signal core — collect this before escaping"; tile.append(core);
+      }
       if (game.goal.x === x && game.goal.y === y) {
-        const goal = document.createElement("span"); goal.className = "tile-icon goal-beacon"; goal.textContent = "◎"; tile.append(goal);
+        const goal = document.createElement("span"); goal.className = `tile-icon goal-beacon ${coresRemaining ? "locked" : ""}`; goal.textContent = coresRemaining ? "◉" : "◎"; tile.append(goal);
+        if (coresRemaining) { const label = document.createElement("span"); label.className = "goal-lock-label"; label.textContent = `${coresRemaining} core${coresRemaining === 1 ? "" : "s"} needed`; tile.append(label); }
       }
       if (game.robot.x === x && game.robot.y === y) {
         const robot = document.createElement("span"); robot.className = "tile-icon robot"; robot.textContent = "⌁"; tile.append(robot);
@@ -251,9 +283,18 @@ function selectTile(x, y) {
 
 function updateSelectionBar() {
   const hasSelection = Boolean(selected);
-  $("#selectedTileText").textContent = hasSelection ? `${String.fromCharCode(65 + selected.x)}${selected.y + 1}${isAdjacent(selected.x, selected.y) ? " • adjacent" : ""}` : "Tap any tile";
-  $("#pingButton").disabled = !hasSelection || game.phase !== "playing";
-  $("#moveButton").disabled = !hasSelection || game.phase !== "playing" || game.captainId !== meId || !isAdjacent(selected.x, selected.y);
+  const selectedGoalLocked = hasSelection && selected.x === game.goal.x && selected.y === game.goal.y && (game.cores || []).some((core) => !core.collected);
+  $("#selectedTileText").textContent = hasSelection
+    ? `${String.fromCharCode(65 + selected.x)}${selected.y + 1}${isAdjacent(selected.x, selected.y) ? " • adjacent" : ""}${selectedGoalLocked ? " • exit locked" : ""}`
+    : (game.soloMode && game.soloStage === "look" ? "Study the danger symbols" : "Tap any tile");
+  const soloLooking = game.soloMode && game.soloStage === "look";
+  const soloMoving = game.soloMode && game.soloStage === "move";
+  $("#readyButton").classList.toggle("hidden", !soloLooking);
+  $("#pingButton").classList.toggle("hidden", soloLooking);
+  $("#moveButton").classList.toggle("hidden", soloLooking);
+  $("#pingButton").textContent = game.soloMode ? `! Memory mark (${game.soloPingsLeft})` : "! Ping danger";
+  $("#pingButton").disabled = !hasSelection || game.phase !== "playing" || (game.soloMode && (!soloMoving || game.soloPingsLeft <= 0));
+  $("#moveButton").disabled = !hasSelection || game.phase !== "playing" || game.captainId !== meId || !isAdjacent(selected.x, selected.y) || selectedGoalLocked || (game.soloMode && !soloMoving);
 }
 
 function renderSignals() {
@@ -261,7 +302,7 @@ function renderSignals() {
   feed.replaceChildren();
   const recent = [...game.pings].sort((a, b) => b.at - a.at).slice(0, 10);
   if (!recent.length) {
-    const empty = document.createElement("p"); empty.className = "signal-empty"; empty.textContent = "No warnings yet. Tap a hazard you can see and ping it for the team."; feed.append(empty); return;
+    const empty = document.createElement("p"); empty.className = "signal-empty"; empty.textContent = game.soloMode ? "After dangers hide, mark up to two tiles you want to remember." : "No warnings yet. Tap a hazard you can see and ping it for the team."; feed.append(empty); return;
   }
   recent.forEach((ping) => {
     const item = document.createElement("div"); item.className = "signal-item";
@@ -282,6 +323,17 @@ function renderScouts() {
 
 function updateTurnUI() {
   if (!game) return;
+  const banner = $("#turnBanner");
+  banner.classList.remove("look-phase", "move-phase");
+  if (game.soloMode) {
+    const looking = game.soloStage === "look";
+    banner.classList.toggle("your-turn", !looking);
+    banner.classList.add(looking ? "look-phase" : "move-phase");
+    $("#turnKicker").textContent = looking ? (game.soloPractice ? "PRACTICE — TAKE YOUR TIME" : "LOOK — DANGERS VISIBLE") : (game.soloPractice ? "PRACTICE MOVE — NO TIMER" : "DANGERS HIDDEN");
+    $("#turnText").textContent = looking ? "Remember the danger tiles, then press Ready" : "MOVE: choose one glowing adjacent tile from memory";
+    $("#turnDot").style.background = looking ? "#ffd166" : "#aa82ff";
+    updateSelectionBar(); return;
+  }
   const captain = game.players.find((player) => player.id === game.captainId);
   const isMe = game.captainId === meId;
   $("#turnBanner").classList.toggle("your-turn", isMe);
@@ -296,6 +348,8 @@ function detectGameEvent(nextGame) {
   if (!event?.id || event.id === lastEventId) return;
   lastEventId = event.id;
   if (event.type === "hazard") { eventToast(`${event.icon} ${event.hazardLabel}! Signal core damaged.`, true); beep(130, .32, "sawtooth", .12); }
+  else if (event.type === "core") { eventToast("◆ Signal core collected!", false); beep(820, .22, "triangle", .09); }
+  else if (event.type === "hide") { eventToast(event.practice ? "Dangers hidden — make your practice move." : "Dangers hidden — move from memory."); beep(300, .1, "triangle", .04); }
   else if (event.type === "safe") { beep(680, .07, "triangle", .045); }
   else if (event.type === "timeout") { eventToast("Navigator timed out — control rotated.", true); beep(220, .15, "square", .05); }
   else if (event.type === "win") { beep(760, .35, "triangle", .1); }
@@ -328,14 +382,18 @@ function renderResults(isHost) {
 function updateTimers() {
   if (!game || currentScreen !== "game") return;
   const now = serverNow();
-  const gameSeconds = Math.max(0, Math.ceil((game.gameEndsAt - now) / 1000));
-  $("#missionTimer").textContent = `${Math.floor(gameSeconds / 60)}:${String(gameSeconds % 60).padStart(2, "0")}`;
+  const gameSeconds = game.gameEndsAt ? Math.max(0, Math.ceil((game.gameEndsAt - now) / 1000)) : 0;
+  $("#missionTimer").textContent = game.soloMode && !game.gameEndsAt ? "PRACTICE" : `${Math.floor(gameSeconds / 60)}:${String(gameSeconds % 60).padStart(2, "0")}`;
   $("#livesDisplay").textContent = `${"● ".repeat(game.lives)}${"○ ".repeat(3 - game.lives)}`.trim();
-  const turnSeconds = Math.max(0, Math.ceil((game.turnEndsAt - now) / 1000));
-  $("#turnTimer").textContent = turnSeconds;
+  const coresFound = (game.cores || []).filter((core) => core.collected).length;
+  $("#coresDisplay").textContent = `${coresFound} / ${(game.cores || []).length || 3}`;
+  const phaseDeadline = game.soloMode && game.soloStage === "look" ? game.phaseEndsAt : game.turnEndsAt;
+  const turnSeconds = phaseDeadline ? Math.max(0, Math.ceil((phaseDeadline - now) / 1000)) : 0;
+  $("#turnTimer").textContent = phaseDeadline ? turnSeconds : "∞";
   if (game.phase === "countdown") {
     const number = Math.max(1, Math.ceil((game.phaseEndsAt - now) / 1000));
     $("#countdownNumber").textContent = number;
+    $("#countdownMessage").textContent = "First: LOOK at the dangers. Then they disappear.";
     $("#countdownOverlay").classList.remove("hidden");
     if (number !== lastCountdown) { beep(320 + (4 - number) * 100, .07, "square", .04); lastCountdown = number; }
   } else { $("#countdownOverlay").classList.add("hidden"); lastCountdown = null; }
@@ -373,9 +431,14 @@ $("#copyCodeButton").onclick = copyInvite;
 $("#addBotButton").onclick = () => socket.emit("add-bot", (result) => { if (!result.ok && result.error) toast(result.error); });
 $("#startButton").onclick = () => socket.emit("start-game", (result) => { if (!result.ok) toast(result.error); });
 $("#playAgainButton").onclick = () => socket.emit("start-game", (result) => { if (!result.ok) toast(result.error); });
+$("#readyButton").onclick = () => socket.emit("finish-solo-look", (result) => { if (!result.ok) toast("Wait for the LOOK phase."); });
 $("#pingButton").onclick = () => {
   if (!selected) return;
-  socket.emit("ping-tile", selected, (result) => { if (result.ok) { beep(520, .06, "square", .04); toast(`Warning sent for ${String.fromCharCode(65 + selected.x)}${selected.y + 1}`); } });
+  const tile = { ...selected };
+  socket.emit("ping-tile", tile, (result) => {
+    if (result.ok) { beep(520, .06, "square", .04); toast(`${game.soloMode ? "Memory marked" : "Warning sent for"} ${String.fromCharCode(65 + tile.x)}${tile.y + 1}`); }
+    else if (result.error) toast(result.error);
+  });
 };
 $("#moveButton").onclick = () => {
   if (!selected) return;

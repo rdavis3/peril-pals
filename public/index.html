@@ -51,21 +51,21 @@
         <div class="lobby-grid">
           <section class="mission-brief">
             <p class="eyebrow">YOUR MISSION</p>
-            <h2>Guide BIMO to the exit.</h2>
-            <p class="brief-lead">Every scout sees a different layer of danger. Share what you know before the navigator moves.</p>
+            <h2>Remember danger. Rescue BIMO.</h2>
+            <p class="brief-lead">Solo players memorize a changing danger map. Teams combine different views. Collect three signal cores, then reach the exit.</p>
             <div class="brief-steps">
-              <div><span>1</span><p><b>SPOT</b> private hazards only you can see</p></div>
-              <div><span>2</span><p><b>PING</b> dangerous tiles for the whole team</p></div>
-              <div><span>3</span><p><b>MOVE</b> BIMO when you become navigator</p></div>
+              <div><span>1</span><p><b>LOOK</b> while the dangers are visible</p></div>
+              <div><span>2</span><p><b>REMEMBER</b> after the danger symbols disappear</p></div>
+              <div><span>3</span><p><b>MOVE</b> one tile, collect three cores, then escape</p></div>
             </div>
             <div class="tiny-map" aria-hidden="true">
               <i class="safe"></i><i></i><i class="hazard">⚡</i><i></i><i></i><i class="bot">⌁</i><i class="ping">!</i><i></i><i></i><i class="exit">◎</i><i></i><i></i>
             </div>
           </section>
           <section class="team-panel">
-            <div class="panel-title"><div><p class="eyebrow">CONNECTED SCOUTS</p><h2 id="playerCount">2 / 8</h2></div><button id="addBotButton" class="small-button hidden">+ Scout bot</button></div>
+            <div class="panel-title"><div><p class="eyebrow">CONNECTED PALS</p><h2 id="playerCount">1 / 8</h2></div><button id="addBotButton" class="small-button hidden">+ Scout bot</button></div>
             <div id="playerList" class="player-list"></div>
-            <div class="bot-note"><span>✦</span><p><b>Solo-friendly:</b> Scout Bot reveals missing information so judges can play immediately.</p></div>
+            <div id="modeNote" class="bot-note"><span>◆</span><p><b>Solo challenge:</b> Your first LOOK and MOVE are untimed practice. Then the memory timer begins.</p></div>
             <button id="startButton" class="primary-button hidden">Begin the peril</button>
             <p id="waitingText" class="waiting-text">Waiting for the host to launch…</p>
           </section>
@@ -77,18 +77,20 @@
           <div class="brand-mini"><span class="mini-eye"></span> PERIL PALS</div>
           <div class="game-stat"><small>MISSION</small><b id="missionTimer">1:45</b></div>
           <div class="game-stat power"><small>SIGNAL CORE</small><b id="livesDisplay">● ● ●</b></div>
+          <div class="game-stat cores"><small>CORES FOUND</small><b id="coresDisplay">0 / 3</b></div>
           <div class="game-stat room-mini"><small>ROOM</small><b id="gameRoomCode">----</b></div>
         </header>
 
         <div class="game-layout">
           <aside class="vision-panel">
-            <p class="eyebrow">YOUR PRIVATE VIEW</p>
-            <h2>You can see:</h2>
+            <p id="visionKicker" class="eyebrow">YOUR PRIVATE VIEW</p>
+            <h2 id="visionTitle">You can see:</h2>
             <div id="visionBadges" class="vision-badges"></div>
-            <p class="vision-warning">Other scouts cannot see these hazards unless someone pings them.</p>
+            <p id="visionWarning" class="vision-warning">Other scouts cannot see these hazards unless someone pings them.</p>
             <div class="legend">
               <div><span class="legend-tile robot-symbol">⌁</span><p><b>BIMO</b><small>Guide to exit</small></p></div>
-              <div><span class="legend-tile exit-symbol">◎</span><p><b>EXIT</b><small>Reach together</small></p></div>
+              <div><span class="legend-tile core-symbol">◆</span><p><b>CORE</b><small>Collect all three</small></p></div>
+              <div><span class="legend-tile exit-symbol">◎</span><p><b>EXIT</b><small>Unlock after cores</small></p></div>
               <div><span class="legend-tile ping-symbol">!</span><p><b>PING</b><small>Team warning</small></p></div>
             </div>
           </aside>
@@ -98,6 +100,7 @@
             <div id="gameBoard" class="game-board" aria-label="Shared mission grid"></div>
             <div id="selectionBar" class="selection-bar">
               <div><small>SELECTED TILE</small><b id="selectedTileText">Tap any tile</b></div>
+              <button id="readyButton" class="ready-button hidden">I remember — hide dangers</button>
               <button id="pingButton" class="ping-button" disabled>! Ping danger</button>
               <button id="moveButton" class="move-button" disabled>Move BIMO →</button>
             </div>
@@ -109,7 +112,7 @@
             <div class="scout-strip"><small>SCOUTS</small><div id="scoutDots"></div></div>
           </aside>
         </div>
-        <div id="countdownOverlay" class="countdown-overlay hidden"><div class="logo-eye"><span></span></div><b id="countdownNumber">3</b><p>Different screens. One safe path.</p></div>
+        <div id="countdownOverlay" class="countdown-overlay hidden"><div class="logo-eye"><span></span></div><b id="countdownNumber">3</b><p id="countdownMessage">Different screens. One safe path.</p></div>
         <div id="eventToast" class="event-toast hidden" role="status"></div>
       </section>
 
@@ -132,12 +135,12 @@
     <dialog id="howDialog">
       <button id="closeHowButton" class="dialog-close" aria-label="Close">×</button>
       <p class="eyebrow">THE ENTIRE RULEBOOK</p>
-      <h2>Nobody sees everything.</h2>
+      <h2>Look. Remember. Move.</h2>
       <ol>
-        <li><span>1</span><div><b>Look at your private hazard type</b><p>Your screen might reveal lasers while a friend sees cracked floors.</p></div></li>
-        <li><span>2</span><div><b>Tap a dangerous tile and ping it</b><p>Your warning appears instantly on every teammate’s screen.</p></div></li>
-        <li><span>3</span><div><b>The navigator chooses one adjacent tile</b><p>Navigator control rotates so everyone makes decisions.</p></div></li>
-        <li><span>4</span><div><b>Reach the exit with signal remaining</b><p>Three mistakes drain the core. The map always has a safe route.</p></div></li>
+        <li><span>1</span><div><b>LOOK while dangers are visible</b><p>Solo starts with untimed practice. Later previews shrink from 8 to 5 seconds.</p></div></li>
+        <li><span>2</span><div><b>REMEMBER when they disappear</b><p>Use two memory markers, or ping private dangers to teammates.</p></div></li>
+        <li><span>3</span><div><b>MOVE BIMO one adjacent tile</b><p>The danger pattern changes after every move, so keep looking.</p></div></li>
+        <li><span>4</span><div><b>Collect three cores, then escape</b><p>Three mistakes drain BIMO’s signal. Every map has a safe route.</p></div></li>
       </ol>
       <button id="gotItButton" class="primary-button">I’m ready</button>
     </dialog>
