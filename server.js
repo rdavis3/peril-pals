@@ -11,6 +11,7 @@ const PORT = Number(process.env.PORT || 3000);
 const MAX_PLAYERS = 8;
 const GAME_MS = Number(process.env.GAME_MS || 105_000);
 const TURN_MS = Number(process.env.TURN_MS || 12_000);
+const SOLO_MOVE_MS = Number(process.env.SOLO_MOVE_MS || 10_000);
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COLORS = ["#ff5d8f", "#5bbcff", "#9bde77", "#ffbf4b", "#aa82ff", "#ff8566", "#43d2bd", "#788bff"];
 const AVATARS = ["bunny", "cat", "frog", "bear", "fox", "panda", "bird", "blob"];
@@ -51,11 +52,11 @@ function makePlayer(name, index, { bot = false } = {}) {
 
 function createRoom(host) {
   const code = makeCode();
-  const guide = makePlayer("Scout Bot", 1, { bot: true });
   const room = {
-    code, hostId: host.id, players: new Map([[host.id, host], [guide.id, guide]]), phase: "lobby",
+    code, hostId: host.id, players: new Map([[host.id, host]]), phase: "lobby",
     phaseEndsAt: 0, gameEndsAt: 0, turnEndsAt: 0, captainId: null, turnNumber: 0,
     cols: 7, rows: 6, board: null, robot: null, goal: null, trail: [], lives: 3, pings: [],
+    cores: [], soloMode: false, soloStage: null, soloStep: 0, soloPingsLeft: 0,
     lastEvent: null, eventSequence: 0, roundsPlayed: 0, outcome: null,
   };
   rooms.set(code, room);
@@ -68,7 +69,7 @@ function publicPlayer(player) {
 }
 
 function publicRoom(room) {
-  return { code: room.code, hostId: room.hostId, phase: room.phase, phaseEndsAt: room.phaseEndsAt, serverNow: Date.now(), players: [...room.players.values()].map(publicPlayer), roundsPlayed: room.roundsPlayed, outcome: room.outcome };
+  return { code: room.code, hostId: room.hostId, phase: room.phase, phaseEndsAt: room.phaseEndsAt, serverNow: Date.now(), players: [...room.players.values()].map(publicPlayer), roundsPlayed: room.roundsPlayed, outcome: room.outcome, soloMode: room.soloMode };
 }
 
 function sendRoom(room) { io.to(room.code).emit("room-state", publicRoom(room)); }
@@ -76,13 +77,15 @@ function sendRoom(room) { io.to(room.code).emit("room-state", publicRoom(room));
 function stateFor(room, viewer) {
   const now = Date.now();
   const hazards = room.board?.hazards
-    .filter((hazard) => room.phase === "results" || hazard.revealed || viewer.visionTypes.includes(hazard.type))
-    .map((hazard) => ({ ...hazard, private: !hazard.revealed && viewer.visionTypes.includes(hazard.type) })) || [];
+    .filter((hazard) => room.phase === "results" || hazard.revealed || (room.soloMode ? room.soloStage === "look" : viewer.visionTypes.includes(hazard.type)))
+    .map((hazard) => ({ ...hazard, private: !room.soloMode && !hazard.revealed && viewer.visionTypes.includes(hazard.type), memory: room.soloMode && room.soloStage === "look" })) || [];
   return {
     code: room.code, phase: room.phase, phaseEndsAt: room.phaseEndsAt, gameEndsAt: room.gameEndsAt,
     turnEndsAt: room.turnEndsAt, serverNow: now, captainId: room.captainId, turnNumber: room.turnNumber,
     board: room.board ? { cols: room.cols, rows: room.rows, hazards } : null, robot: room.robot, goal: room.goal,
     trail: room.trail, lives: room.lives, pings: room.pings.filter((ping) => now - ping.at < 30_000),
+    cores: room.cores, soloMode: room.soloMode, soloStage: room.soloStage, soloStep: room.soloStep,
+    soloPractice: room.soloMode && room.soloStep === 0, soloPingsLeft: room.soloPingsLeft,
     lastEvent: room.lastEvent, myVision: viewer.visionTypes.map((id) => VISION_TYPES.find((type) => type.id === id)).filter(Boolean),
     players: [...room.players.values()].map(publicPlayer), outcome: room.outcome,
   };
@@ -92,6 +95,21 @@ function sendGame(room) {
   for (const player of room.players.values()) {
     if (!player.isBot && player.connected && player.socketId) io.to(player.socketId).emit("game-state", stateFor(room, player));
   }
+}
+
+function makeHazards(room, safePath) {
+  const hazards = [];
+  for (let row = 0; row < room.rows; row += 1) {
+    for (let col = 0; col < room.cols; col += 1) {
+      const key = `${col},${row}`;
+      if (safePath.has(key)) continue;
+      if (Math.random() < 0.58) {
+        const type = VISION_TYPES[(col * 3 + row + room.roundsPlayed + room.soloStep + Math.floor(Math.random() * 4)) % VISION_TYPES.length];
+        hazards.push({ id: crypto.randomUUID(), x: col, y: row, type: type.id, revealed: false });
+      }
+    }
+  }
+  return hazards;
 }
 
 function makeBoard(room) {
@@ -110,18 +128,26 @@ function makeBoard(room) {
     else y -= 1;
     safePath.add(`${x},${y}`);
   }
-  const hazards = [];
-  for (let row = 0; row < room.rows; row += 1) {
-    for (let col = 0; col < room.cols; col += 1) {
-      const key = `${col},${row}`;
-      if (safePath.has(key) || key === `${start.x},${start.y}` || key === `${goal.x},${goal.y}`) continue;
-      if (Math.random() < 0.55) {
-        const type = VISION_TYPES[(col * 3 + row + room.roundsPlayed + Math.floor(Math.random() * 4)) % VISION_TYPES.length];
-        hazards.push({ id: crypto.randomUUID(), x: col, y: row, type: type.id, revealed: false });
-      }
-    }
-  }
-  return { start, goal, hazards };
+  const pathTiles = [...safePath].map((key) => {
+    const [tileX, tileY] = key.split(",").map(Number);
+    return { x: tileX, y: tileY };
+  });
+  return { start, goal, safePath, pathTiles, hazards: makeHazards(room, safePath) };
+}
+
+function placeCores(room) {
+  const path = room.board.pathTiles.slice(1, -1);
+  const indexes = [0.22, 0.5, 0.78].map((ratio) => Math.min(path.length - 1, Math.floor(path.length * ratio)));
+  const seen = new Set();
+  room.cores = indexes.map((index) => path[index]).filter((tile) => {
+    const key = `${tile.x},${tile.y}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).map((tile, index) => ({ id: `core-${index + 1}`, ...tile, collected: false }));
+}
+
+function shiftHazards(room) {
+  room.board.hazards = makeHazards(room, room.board.safePath);
 }
 
 function assignVisions(room) {
@@ -134,11 +160,13 @@ function assignVisions(room) {
 }
 
 function setupGame(room) {
+  room.soloMode = connectedHumans(room).length === 1;
+  room.soloStage = null; room.soloStep = 0; room.soloPingsLeft = 0;
   assignVisions(room);
   room.board = makeBoard(room);
   room.robot = { ...room.board.start };
   room.goal = { ...room.board.goal };
-  room.trail = [{ ...room.robot }];
+  room.trail = [{ ...room.robot }]; placeCores(room);
   room.lives = 3; room.pings = []; room.lastEvent = null; room.captainId = null; room.turnNumber = 0; room.outcome = null;
   room.roundsPlayed += 1;
   room.phase = "countdown";
@@ -154,16 +182,6 @@ function addPing(room, player, x, y, { bot = false } = {}) {
   player.stats.pings += 1;
 }
 
-function addBotHints(room) {
-  for (const bot of [...room.players.values()].filter((player) => player.isBot)) {
-    const candidate = room.board.hazards
-      .filter((hazard) => !hazard.revealed && bot.visionTypes.includes(hazard.type))
-      .map((hazard) => ({ hazard, distance: Math.abs(hazard.x - room.robot.x) + Math.abs(hazard.y - room.robot.y) }))
-      .filter((entry) => entry.distance <= 3).sort((a, b) => a.distance - b.distance)[0];
-    if (candidate) addPing(room, bot, candidate.hazard.x, candidate.hazard.y, { bot: true });
-  }
-}
-
 function rotateCaptain(room, now, first = false) {
   const humans = connectedHumans(room);
   if (!humans.length) { room.captainId = null; room.turnEndsAt = now + TURN_MS; return; }
@@ -173,12 +191,54 @@ function rotateCaptain(room, now, first = false) {
   room.turnNumber += 1;
   room.turnEndsAt = now + TURN_MS;
   room.pings = room.pings.filter((ping) => now - ping.at < 22_000);
-  addBotHints(room);
+}
+
+function soloLookDuration(step) {
+  if (step === 0) return 0;
+  if (step <= 2) return 8_000;
+  if (step <= 4) return 6_000;
+  return 5_000;
+}
+
+function beginSoloLook(room, now) {
+  room.soloStage = "look";
+  room.soloPingsLeft = 0;
+  room.pings = [];
+  const duration = soloLookDuration(room.soloStep);
+  room.phaseEndsAt = duration ? now + duration : 0;
+  room.turnEndsAt = 0;
+  sendGame(room);
+}
+
+function beginSoloMove(room, now) {
+  if (!room.soloMode || room.soloStage !== "look") return;
+  room.soloStage = "move";
+  room.phaseEndsAt = 0;
+  room.soloPingsLeft = 2;
+  room.turnEndsAt = room.soloStep === 0 ? 0 : now + SOLO_MOVE_MS;
+  room.lastEvent = { id: ++room.eventSequence, type: "hide", practice: room.soloStep === 0, at: now };
+  sendGame(room);
+}
+
+function nextSoloTurn(room, now) {
+  room.soloStep += 1;
+  if (!room.gameEndsAt) room.gameEndsAt = now + GAME_MS;
+  shiftHazards(room);
+  beginSoloLook(room, now);
 }
 
 function beginGame(room, now) {
-  room.phase = "playing"; room.phaseEndsAt = now + GAME_MS; room.gameEndsAt = room.phaseEndsAt;
-  rotateCaptain(room, now, true);
+  room.phase = "playing";
+  if (room.soloMode) {
+    const human = connectedHumans(room)[0];
+    room.captainId = human?.id || null;
+    room.gameEndsAt = 0;
+    room.phaseEndsAt = 0;
+    beginSoloLook(room, now);
+  } else {
+    room.phaseEndsAt = now + GAME_MS; room.gameEndsAt = room.phaseEndsAt;
+    rotateCaptain(room, now, true);
+  }
   room.lastEvent = { id: ++room.eventSequence, type: "start", at: now };
   sendRoom(room); sendGame(room);
 }
@@ -198,8 +258,11 @@ function finishGame(room, won, reason, now) {
 function moveRobot(room, player, x, y) {
   const now = Date.now();
   if (room.phase !== "playing" || room.captainId !== player.id) return { ok: false, error: "It isn’t your turn to navigate." };
+  if (room.soloMode && room.soloStage !== "move") return { ok: false, error: "Study the dangers first, then press Ready." };
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= room.cols || y >= room.rows) return { ok: false, error: "That tile is outside the map." };
   if (Math.abs(x - room.robot.x) + Math.abs(y - room.robot.y) !== 1) return { ok: false, error: "Move one tile at a time." };
+  const lockedGoal = x === room.goal.x && y === room.goal.y && room.cores.some((core) => !core.collected);
+  if (lockedGoal) return { ok: false, error: "The exit is locked. Collect all three signal cores first." };
   player.stats.moves += 1;
   const hazard = room.board.hazards.find((item) => item.x === x && item.y === y);
   if (hazard) {
@@ -209,10 +272,16 @@ function moveRobot(room, player, x, y) {
     if (room.lives <= 0) { finishGame(room, false, "The signal core ran out of power.", now); return { ok: true }; }
   } else {
     room.robot = { x, y }; room.trail.push({ x, y });
-    room.lastEvent = { id: ++room.eventSequence, type: "safe", x, y, playerId: player.id, at: now };
+    const core = room.cores.find((item) => !item.collected && item.x === x && item.y === y);
+    if (core) {
+      core.collected = true;
+      room.lastEvent = { id: ++room.eventSequence, type: "core", x, y, playerId: player.id, at: now };
+    } else room.lastEvent = { id: ++room.eventSequence, type: "safe", x, y, playerId: player.id, at: now };
     if (x === room.goal.x && y === room.goal.y) { finishGame(room, true, "The Pals turned every peril into a shared path.", now); return { ok: true }; }
   }
-  rotateCaptain(room, now); sendGame(room); return { ok: true };
+  if (room.soloMode) nextSoloTurn(room, now);
+  else { shiftHazards(room); rotateCaptain(room, now); sendGame(room); }
+  return { ok: true };
 }
 
 function removePlayer(room, playerId) {
@@ -252,16 +321,28 @@ io.on("connection", (socket) => {
     ack({ ok: true, room: publicRoom(room), playerId: player.id, token: player.token }); sendRoom(room);
     if (["countdown", "playing"].includes(room.phase)) io.to(socket.id).emit("game-state", stateFor(room, player));
   });
-  socket.on("start-game", (ack = () => {}) => {
+  socket.on("start-game", (ack) => {
+    const respond = typeof ack === "function" ? ack : () => {};
     const room = rooms.get(socket.data.roomCode);
-    if (!room || room.hostId !== socket.data.playerId) return ack({ ok: false, error: "Only the host can launch the mission." });
-    if (!["lobby", "results"].includes(room.phase) || room.players.size < 2) return ack({ ok: false, error: "You need at least two scouts." });
-    setupGame(room); ack({ ok: true });
+    if (!room || room.hostId !== socket.data.playerId) return respond({ ok: false, error: "Only the host can launch the mission." });
+    if (!["lobby", "results"].includes(room.phase) || connectedHumans(room).length < 1) return respond({ ok: false, error: "At least one player must be connected." });
+    setupGame(room); respond({ ok: true });
+  });
+  socket.on("finish-solo-look", (ack) => {
+    const respond = typeof ack === "function" ? ack : () => {};
+    const room = rooms.get(socket.data.roomCode); const player = room?.players.get(socket.data.playerId);
+    if (!room || !player || !room.soloMode || room.phase !== "playing" || room.soloStage !== "look") return respond({ ok: false });
+    beginSoloMove(room, Date.now()); respond({ ok: true });
   });
   socket.on("ping-tile", ({ x, y } = {}, ack = () => {}) => {
     const room = rooms.get(socket.data.roomCode); const player = room?.players.get(socket.data.playerId);
     if (!room || !player || room.phase !== "playing") return ack({ ok: false });
     if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= room.cols || y >= room.rows) return ack({ ok: false });
+    if (room.soloMode) {
+      if (room.soloStage !== "move") return ack({ ok: false, error: "Memory markers become available after dangers are hidden." });
+      if (room.soloPingsLeft <= 0) return ack({ ok: false, error: "No memory markers left this move." });
+      room.soloPingsLeft -= 1;
+    }
     addPing(room, player, x, y); sendGame(room); ack({ ok: true });
   });
   socket.on("move-robot", ({ x, y } = {}, ack = () => {}) => {
@@ -303,8 +384,14 @@ setInterval(() => {
   for (const room of rooms.values()) {
     if (room.phase === "countdown" && now >= room.phaseEndsAt) beginGame(room, now);
     if (room.phase === "playing") {
-      if (now >= room.gameEndsAt) finishGame(room, false, "The exit signal faded before the team arrived.", now);
-      else if (now >= room.turnEndsAt) {
+      if (room.gameEndsAt && now >= room.gameEndsAt) finishGame(room, false, "The exit signal faded before the team arrived.", now);
+      else if (room.soloMode && room.soloStage === "look" && room.phaseEndsAt && now >= room.phaseEndsAt) beginSoloMove(room, now);
+      else if (room.soloMode && room.soloStage === "move" && room.turnEndsAt && now >= room.turnEndsAt) {
+        room.lives -= 1;
+        room.lastEvent = { id: ++room.eventSequence, type: "timeout", playerId: room.captainId, at: now };
+        if (room.lives <= 0) finishGame(room, false, "Three missed moves drained BIMO’s signal.", now);
+        else nextSoloTurn(room, now);
+      } else if (!room.soloMode && now >= room.turnEndsAt) {
         room.lastEvent = { id: ++room.eventSequence, type: "timeout", playerId: room.captainId, at: now };
         rotateCaptain(room, now); sendGame(room);
       }

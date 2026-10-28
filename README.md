@@ -2,7 +2,7 @@
 
 **Nobody sees the whole truth.**
 
-PERIL PALS is a cooperative asymmetric puzzle for 2–8 players. The team guides BIMO across a dangerous grid, but every device reveals a different hazard layer. Players must ping what only they can see, then the rotating navigator chooses the next step.
+PERIL PALS is a lethal-cute memory game for one player and an asymmetric cooperative puzzle for 2–8 players. Guide BIMO across a shifting danger grid, recover three signal cores, and escape before the team runs out of lives.
 
 ## Run locally
 
@@ -11,16 +11,25 @@ npm install
 npm start
 ```
 
-Open `http://localhost:3000`. Every new room includes a Scout Bot, so the game can be tested immediately by one person. For true asymmetric play, join the room from a second device or private browser window.
+Open `http://localhost:3000`. One person can immediately play the complete solo memory challenge. For asymmetric team play, join the same room from a second device or private browser window.
 
 ## How to play
 
-1. Each scout sees one or more private hazard types.
-2. Select a dangerous tile and press **Ping danger** to warn the team.
-3. When you become navigator, select one glowing adjacent tile and move BIMO.
-4. Reach the exit before time expires. Three mistakes drain the signal core.
+### Solo
 
-Every generated map has at least one safe route. Missing roles are covered by Scout Bots, which send truthful public hints without exposing private hazard data.
+1. **LOOK:** Memorize the visible dangers. The first round is untimed practice; later looks shrink from 8 to 5 seconds.
+2. **HIDE:** Press **Ready** (or let the timer expire) and every danger symbol disappears.
+3. **MOVE:** Use up to two memory markers, then choose one adjacent tile. A mistake costs a life.
+4. The danger pattern shifts after every move. Collect all three signal cores to unlock the exit, then reach it to win.
+
+### Team
+
+1. Each scout sees one or more private hazard types.
+2. Select a dangerous tile and press **Ping danger** to warn every device.
+3. The navigator selects one glowing adjacent tile and moves BIMO.
+4. Navigator control rotates after each move. Collect all three cores and reach the exit before time expires.
+
+Every generated map has a guaranteed safe route through all three cores to the exit. The server shifts danger tiles while preserving that route.
 
 ## Multiplayer architecture
 
@@ -36,4 +45,4 @@ The included `render.yaml` defines a free Node web service with a `/health` endp
 
 ## Contest pitch
 
-Most multiplayer games show everyone the same world. PERIL PALS makes synchronization itself the mechanic: each device holds a different piece of the truth. The team cannot win by staring at one screen. Short missions, rotating authority, visible live pings, guaranteed-solvable maps, solo-test bots, and responsive phone controls make the concept immediately demonstrable and reliable.
+Most multiplayer games show everyone the same world. PERIL PALS makes synchronization itself the mechanic: each device holds a different piece of the truth. Solo play turns that same hidden-information idea into a tense LOOK–HIDE–MOVE memory loop, so a judge gets a complete challenge immediately. Short missions, rotating authority, shifting maps, guaranteed-solvable routes, live pings, and responsive phone controls make the concept easy to demonstrate and hard to master.
