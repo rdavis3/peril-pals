@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#11152b" />
+    <meta name="description" content="PERIL PALS — a cooperative multiplayer puzzle where every player sees a different danger." />
+    <title>PERIL PALS — Nobody Sees the Whole Truth</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="ambient-grid" aria-hidden="true"></div>
+    <main id="app">
+      <section id="homeScreen" class="screen home-screen">
+        <div class="home-copy">
+          <div class="logo-eye" aria-hidden="true"><span></span></div>
+          <p class="eyebrow">A CO-OP GAME OF INCOMPLETE INFORMATION</p>
+          <h1>PERIL<span>PALS</span></h1>
+          <p class="hero-line">Nobody sees the whole truth.</p>
+          <div class="truth-demo" aria-label="Different players see different hazards">
+            <div><span class="truth-icon laser">⚡</span><small>YOU SEE</small><b>LASERS</b></div>
+            <div><span class="truth-icon crack">✦</span><small>THEY SEE</small><b>CRACKS</b></div>
+            <div class="truth-result"><span>⌁</span><small>TOGETHER</small><b>ESCAPE</b></div>
+          </div>
+        </div>
+
+        <div class="entry-card">
+          <p class="entry-kicker"><span></span> SIGNAL READY</p>
+          <label for="playerName">Your scout name</label>
+          <input id="playerName" maxlength="16" autocomplete="nickname" placeholder="e.g. Nova" />
+          <button id="createButton" class="primary-button">Create mission <span>→</span></button>
+          <div class="divider"><span>or join a team</span></div>
+          <div class="join-row">
+            <input id="roomCodeInput" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Four character room code" />
+            <button id="joinButton" class="secondary-button">Join</button>
+          </div>
+          <p id="homeError" class="error-message" role="alert"></p>
+          <button id="howButton" class="text-button">How does it work?</button>
+        </div>
+      </section>
+
+      <section id="lobbyScreen" class="screen lobby-screen hidden">
+        <header class="lobby-header">
+          <button id="leaveButton" class="icon-button" aria-label="Leave mission">←</button>
+          <div><p class="eyebrow">MISSION CODE</p><button id="copyCodeButton" class="room-code"><span id="roomCode">----</span><small>tap to copy invite</small></button></div>
+          <button id="soundButton" class="icon-button" aria-label="Toggle sound">♪</button>
+        </header>
+        <div class="lobby-grid">
+          <section class="mission-brief">
+            <p class="eyebrow">YOUR MISSION</p>
+            <h2>Guide BIMO to the exit.</h2>
+            <p class="brief-lead">Every scout sees a different layer of danger. Share what you know before the navigator moves.</p>
+            <div class="brief-steps">
+              <div><span>1</span><p><b>SPOT</b> private hazards only you can see</p></div>
+              <div><span>2</span><p><b>PING</b> dangerous tiles for the whole team</p></div>
+              <div><span>3</span><p><b>MOVE</b> BIMO when you become navigator</p></div>
+            </div>
+            <div class="tiny-map" aria-hidden="true">
+              <i class="safe"></i><i></i><i class="hazard">⚡</i><i></i><i></i><i class="bot">⌁</i><i class="ping">!</i><i></i><i></i><i class="exit">◎</i><i></i><i></i>
+            </div>
+          </section>
+          <section class="team-panel">
+            <div class="panel-title"><div><p class="eyebrow">CONNECTED SCOUTS</p><h2 id="playerCount">2 / 8</h2></div><button id="addBotButton" class="small-button hidden">+ Scout bot</button></div>
+            <div id="playerList" class="player-list"></div>
+            <div class="bot-note"><span>✦</span><p><b>Solo-friendly:</b> Scout Bot reveals missing information so judges can play immediately.</p></div>
+            <button id="startButton" class="primary-button hidden">Begin the peril</button>
+            <p id="waitingText" class="waiting-text">Waiting for the host to launch…</p>
+          </section>
+        </div>
+      </section>
+
+      <section id="gameScreen" class="screen game-screen hidden">
+        <header class="game-header">
+          <div class="brand-mini"><span class="mini-eye"></span> PERIL PALS</div>
+          <div class="game-stat"><small>MISSION</small><b id="missionTimer">1:45</b></div>
+          <div class="game-stat power"><small>SIGNAL CORE</small><b id="livesDisplay">● ● ●</b></div>
+          <div class="game-stat room-mini"><small>ROOM</small><b id="gameRoomCode">----</b></div>
+        </header>
+
+        <div class="game-layout">
+          <aside class="vision-panel">
+            <p class="eyebrow">YOUR PRIVATE VIEW</p>
+            <h2>You can see:</h2>
+            <div id="visionBadges" class="vision-badges"></div>
+            <p class="vision-warning">Other scouts cannot see these hazards unless someone pings them.</p>
+            <div class="legend">
+              <div><span class="legend-tile robot-symbol">⌁</span><p><b>BIMO</b><small>Guide to exit</small></p></div>
+              <div><span class="legend-tile exit-symbol">◎</span><p><b>EXIT</b><small>Reach together</small></p></div>
+              <div><span class="legend-tile ping-symbol">!</span><p><b>PING</b><small>Team warning</small></p></div>
+            </div>
+          </aside>
+
+          <section class="board-section">
+            <div id="turnBanner" class="turn-banner"><span id="turnDot"></span><div><small id="turnKicker">CURRENT NAVIGATOR</small><b id="turnText">Waiting…</b></div><strong id="turnTimer">12</strong></div>
+            <div id="gameBoard" class="game-board" aria-label="Shared mission grid"></div>
+            <div id="selectionBar" class="selection-bar">
+              <div><small>SELECTED TILE</small><b id="selectedTileText">Tap any tile</b></div>
+              <button id="pingButton" class="ping-button" disabled>! Ping danger</button>
+              <button id="moveButton" class="move-button" disabled>Move BIMO →</button>
+            </div>
+          </section>
+
+          <aside class="team-panel-game">
+            <p class="eyebrow">TEAM SIGNALS</p>
+            <div id="signalFeed" class="signal-feed"></div>
+            <div class="scout-strip"><small>SCOUTS</small><div id="scoutDots"></div></div>
+          </aside>
+        </div>
+        <div id="countdownOverlay" class="countdown-overlay hidden"><div class="logo-eye"><span></span></div><b id="countdownNumber">3</b><p>Different screens. One safe path.</p></div>
+        <div id="eventToast" class="event-toast hidden" role="status"></div>
+      </section>
+
+      <section id="resultsScreen" class="screen results-screen hidden">
+        <div class="results-card">
+          <div id="resultIcon" class="result-icon">◎</div>
+          <p id="resultKicker" class="eyebrow">MISSION COMPLETE</p>
+          <h2 id="resultTitle">The team found the truth.</h2>
+          <p id="resultReason" class="result-reason"></p>
+          <div id="stars" class="stars">☆ ☆ ☆</div>
+          <div class="score-card"><small>TEAM SCORE</small><b id="scoreValue">0</b></div>
+          <div id="scoreboard" class="scoreboard"></div>
+          <button id="playAgainButton" class="primary-button hidden">Generate a new reality</button>
+          <p id="resultsWaiting" class="waiting-text">Waiting for the host…</p>
+          <button id="resultsLeaveButton" class="text-button">Leave mission</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="howDialog">
+      <button id="closeHowButton" class="dialog-close" aria-label="Close">×</button>
+      <p class="eyebrow">THE ENTIRE RULEBOOK</p>
+      <h2>Nobody sees everything.</h2>
+      <ol>
+        <li><span>1</span><div><b>Look at your private hazard type</b><p>Your screen might reveal lasers while a friend sees cracked floors.</p></div></li>
+        <li><span>2</span><div><b>Tap a dangerous tile and ping it</b><p>Your warning appears instantly on every teammate’s screen.</p></div></li>
+        <li><span>3</span><div><b>The navigator chooses one adjacent tile</b><p>Navigator control rotates so everyone makes decisions.</p></div></li>
+        <li><span>4</span><div><b>Reach the exit with signal remaining</b><p>Three mistakes drain the core. The map always has a safe route.</p></div></li>
+      </ol>
+      <button id="gotItButton" class="primary-button">I’m ready</button>
+    </dialog>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/game.js"></script>
+  </body>
+</html>
