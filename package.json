@@ -1,0 +1,21 @@
+{
+  "name": "peril-pals",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A cooperative multiplayer puzzle where every player sees a different danger.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "5.3.0",
+    "socket.io": "4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}
