@@ -276,7 +276,7 @@ function renderLobby(isHost) {
   $("#startButton").disabled = humanCount < 1;
   $("#startButton").textContent = humanCount === 1 ? "Start solo memory challenge" : "Begin the team peril";
   $("#modeNote").innerHTML = humanCount === 1
-    ? "<span>◆</span><p><b>Solo challenge:</b> Your first LOOK and MOVE are untimed practice. Then the memory timer begins.</p>"
+    ? "<span>◆</span><p><b>Solo challenge:</b> Your first route is untimed practice. Dangers return only at each core checkpoint.</p>"
     : "<span>✦</span><p><b>Team mode:</b> Every device reveals different dangers. Ping what only you can see before the navigator moves.</p>";
   $("#waitingText").classList.toggle("hidden", isHost);
 }
@@ -296,12 +296,12 @@ function renderVision() {
   if (game.soloMode) {
     const looking = game.soloStage === "look";
     $("#visionKicker").textContent = looking ? "LOOK — DANGERS VISIBLE" : "REMEMBER — DANGERS HIDDEN";
-    $("#visionTitle").textContent = looking ? "Study every danger." : "Move from memory.";
+    $("#visionTitle").textContent = looking ? "Study the route ahead." : "Run from memory.";
     $("#visionWarning").textContent = looking
       ? (game.soloPractice
         ? "Take as long as you need. Press Ready when you have memorized the danger tiles."
         : "The dangers disappear when the LOOK timer reaches zero. Press Ready sooner if you remember them.")
-      : `You have ${game.soloPingsLeft} memory marker${game.soloPingsLeft === 1 ? "" : "s"} and one move.`;
+      : `The map stays hidden until the next core. ${game.soloPingsLeft} marker${game.soloPingsLeft === 1 ? "" : "s"} and ${game.soloDistanceToCheckpoint} safe-route step${game.soloDistanceToCheckpoint === 1 ? "" : "s"} remain.`;
     const badge = document.createElement("div");
     badge.className = "vision-badge";
     const icon = document.createElement("span");
@@ -422,7 +422,7 @@ function renderSignals() {
   feed.replaceChildren();
   const recent = [...game.pings].sort((a, b) => b.at - a.at).slice(0, 10);
   if (!recent.length) {
-    const empty = document.createElement("p"); empty.className = "signal-empty"; empty.textContent = game.soloMode ? "After dangers hide, mark up to two tiles you want to remember." : "No warnings yet. Tap a hazard you can see and ping it for the team."; feed.append(empty); return;
+    const empty = document.createElement("p"); empty.className = "signal-empty"; empty.textContent = game.soloMode ? "Two memory markers must last until the next checkpoint." : "No warnings yet. Tap a hazard you can see and ping it for the team."; feed.append(empty); return;
   }
   recent.forEach((ping) => {
     const item = document.createElement("div"); item.className = "signal-item";
@@ -449,8 +449,8 @@ function updateTurnUI() {
     const looking = game.soloStage === "look";
     banner.classList.toggle("your-turn", !looking);
     banner.classList.add(looking ? "look-phase" : "move-phase");
-    $("#turnKicker").textContent = looking ? (game.soloPractice ? "PRACTICE — TAKE YOUR TIME" : "LOOK — DANGERS VISIBLE") : (game.soloPractice ? "PRACTICE MOVE — NO TIMER" : "DANGERS HIDDEN");
-    $("#turnText").textContent = looking ? "Remember the danger tiles, then press Ready" : "MOVE: choose one glowing adjacent tile from memory";
+    $("#turnKicker").textContent = looking ? (game.soloPractice ? "PRACTICE LOOK — TAKE YOUR TIME" : `CHECKPOINT ${game.soloStep} — DANGERS VISIBLE`) : (game.soloPractice ? "PRACTICE RUN — NO TIMER" : `RUN ${game.soloStep + 1} — DANGERS HIDDEN`);
+    $("#turnText").textContent = looking ? "Memorize the route to the next core, then press Ready" : `Reach the next checkpoint without another look • ${game.soloDistanceToCheckpoint} steps`;
     $("#turnDot").style.background = looking ? "#ffd166" : "#aa82ff";
     updateSelectionBar(); return;
   }
@@ -468,10 +468,10 @@ function detectGameEvent(nextGame) {
   if (!event?.id || event.id === lastEventId) return;
   lastEventId = event.id;
   if (event.type === "hazard") { eventToast(`${event.icon} ${event.hazardLabel}! Signal core damaged.`, true); beep(130, .32, "sawtooth", .12); }
-  else if (event.type === "core") { eventToast("◆ Signal core collected!", false); beep(820, .22, "triangle", .09); }
-  else if (event.type === "hide") { eventToast(event.practice ? "Dangers hidden — make your practice move." : "Dangers hidden — move from memory."); beep(300, .1, "triangle", .04); }
+  else if (event.type === "core") { eventToast("◆ Checkpoint reached. New map incoming!", false); beep(820, .22, "triangle", .09); }
+  else if (event.type === "hide") { eventToast(event.practice ? "Dangers hidden — finish the practice route." : "Dangers hidden — reach the next core from memory."); beep(300, .1, "triangle", .04); }
   else if (event.type === "safe") { beep(680, .07, "triangle", .045); }
-  else if (event.type === "timeout") { eventToast("Navigator timed out — control rotated.", true); beep(220, .15, "square", .05); }
+  else if (event.type === "timeout") { eventToast(game?.soloMode ? "Memory run timed out. Map restored, one life lost." : "Navigator timed out — control rotated.", true); beep(220, .15, "square", .05); }
   else if (event.type === "win") { beep(760, .35, "triangle", .1); }
   else if (event.type === "loss") { beep(110, .45, "sawtooth", .1); }
 }

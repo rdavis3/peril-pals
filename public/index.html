@@ -57,18 +57,31 @@
           </div>
         </div>
 
-        <div class="entry-card">
-          <p class="entry-kicker"><span></span> SIGNAL READY</p>
-          <label for="playerName">Your scout name</label>
-          <input id="playerName" maxlength="16" autocomplete="nickname" placeholder="e.g. Nova" />
-          <button id="createButton" class="primary-button">Create mission <span>→</span></button>
-          <div class="divider"><span>or join a team</span></div>
-          <div class="join-row">
-            <input id="roomCodeInput" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Four character room code" />
-            <button id="joinButton" class="secondary-button">Join</button>
+        <div class="hero-stage">
+          <div class="hero-board" aria-hidden="true">
+            <div class="hero-board-head"><b>LOOK • HIDE • RUN</b><span>CORE 1 / 3</span></div>
+            <div class="hero-board-grid">
+              <i></i><i class="hero-hazard pink">⚡</i><i></i><i></i><i class="hero-core">◆</i>
+              <i></i><i></i><i class="hero-hazard orange">✦</i><i></i><i></i>
+              <i class="hero-hazard green">●</i><i></i><i></i><i class="hero-hazard purple">◆</i><i></i>
+              <i></i><i></i><i></i><i></i><i></i>
+              <span class="hero-runner">⌁</span>
+            </div>
+            <div class="hero-board-status"><span></span> DANGERS HIDE. MEMORY STARTS.</div>
           </div>
-          <p id="homeError" class="error-message" role="alert"></p>
-          <button id="howButton" class="text-button">How does it work?</button>
+          <div class="entry-card">
+            <p class="entry-kicker"><span></span> SIGNAL READY</p>
+            <label for="playerName">Your scout name</label>
+            <input id="playerName" maxlength="16" autocomplete="nickname" placeholder="e.g. Nova" />
+            <button id="createButton" class="primary-button">Create mission <span>→</span></button>
+            <div class="divider"><span>or join a team</span></div>
+            <div class="join-row">
+              <input id="roomCodeInput" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Four character room code" />
+              <button id="joinButton" class="secondary-button">Join</button>
+            </div>
+            <p id="homeError" class="error-message" role="alert"></p>
+            <button id="howButton" class="text-button">How does it work?</button>
+          </div>
         </div>
       </section>
 
@@ -82,11 +95,11 @@
           <section class="mission-brief">
             <p class="eyebrow">YOUR MISSION</p>
             <h2>Remember danger. Rescue BIMO.</h2>
-            <p class="brief-lead">Solo players memorize a changing danger map. Teams combine different views. Collect three signal cores, then reach the exit.</p>
+            <p class="brief-lead">Solo players memorize a route and make several moves before the map returns. Teams combine different views. Collect three signal cores, then reach the exit.</p>
             <div class="brief-steps">
               <div><span>1</span><p><b>LOOK</b> while the dangers are visible</p></div>
               <div><span>2</span><p><b>REMEMBER</b> after the danger symbols disappear</p></div>
-              <div><span>3</span><p><b>MOVE</b> one tile, collect three cores, then escape</p></div>
+              <div><span>3</span><p><b>RUN</b> all the way to the next core from memory</p></div>
             </div>
             <div class="tiny-map" aria-hidden="true">
               <i class="safe"></i><i></i><i class="hazard">⚡</i><i></i><i></i><i class="bot">⌁</i><i class="ping">!</i><i></i><i></i><i class="exit">◎</i><i></i><i></i>
@@ -95,7 +108,7 @@
           <section class="team-panel">
             <div class="panel-title"><div><p class="eyebrow">CONNECTED PALS</p><h2 id="playerCount">1 / 8</h2></div><button id="addBotButton" class="small-button hidden">+ Scout bot</button></div>
             <div id="playerList" class="player-list"></div>
-            <div id="modeNote" class="bot-note"><span>◆</span><p><b>Solo challenge:</b> Your first LOOK and MOVE are untimed practice. Then the memory timer begins.</p></div>
+            <div id="modeNote" class="bot-note"><span>◆</span><p><b>Solo challenge:</b> Your first route is untimed practice. Dangers return only at each core checkpoint.</p></div>
             <button id="startButton" class="primary-button hidden">Begin the peril</button>
             <p id="waitingText" class="waiting-text">Waiting for the host to launch…</p>
           </section>
@@ -165,12 +178,12 @@
     <dialog id="howDialog">
       <button id="closeHowButton" class="dialog-close" aria-label="Close">×</button>
       <p class="eyebrow">THE ENTIRE RULEBOOK</p>
-      <h2>Look. Remember. Move.</h2>
+      <h2>Look. Hide. Run.</h2>
       <ol>
-        <li><span>1</span><div><b>LOOK while dangers are visible</b><p>Solo starts with untimed practice. Later previews shrink from 8 to 5 seconds.</p></div></li>
-        <li><span>2</span><div><b>REMEMBER when they disappear</b><p>Use two memory markers, or ping private dangers to teammates.</p></div></li>
-        <li><span>3</span><div><b>MOVE BIMO one adjacent tile</b><p>The danger pattern changes after every move, so keep looking.</p></div></li>
-        <li><span>4</span><div><b>Collect three cores, then escape</b><p>Three mistakes drain BIMO’s signal. Every map has a safe route.</p></div></li>
+        <li><span>1</span><div><b>LOOK while dangers are visible</b><p>Your first preview is untimed. Later previews shrink from six to four seconds.</p></div></li>
+        <li><span>2</span><div><b>HIDE the entire danger map</b><p>Two memory markers must last until the next checkpoint.</p></div></li>
+        <li><span>3</span><div><b>RUN several moves from memory</b><p>The map stays hidden until you reach the next signal core.</p></div></li>
+        <li><span>4</span><div><b>Collect three cores, then escape</b><p>Each core reveals a reshuffled map. Three mistakes drain BIMO’s signal.</p></div></li>
       </ol>
       <button id="gotItButton" class="primary-button">I’m ready</button>
     </dialog>
