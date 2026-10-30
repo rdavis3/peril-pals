@@ -11,7 +11,7 @@ const PORT = Number(process.env.PORT || 3000);
 const MAX_PLAYERS = 8;
 const GAME_MS = Number(process.env.GAME_MS || 105_000);
 const TURN_MS = Number(process.env.TURN_MS || 12_000);
-const SOLO_MOVE_MS = Number(process.env.SOLO_MOVE_MS || 10_000);
+const SOLO_RUN_MS = Number(process.env.SOLO_RUN_MS || 22_000);
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COLORS = ["#ff5d8f", "#5bbcff", "#9bde77", "#ffbf4b", "#aa82ff", "#ff8566", "#43d2bd", "#788bff"];
 const AVATARS = ["bunny", "cat", "frog", "bear", "fox", "panda", "bird", "blob"];
@@ -74,6 +74,10 @@ function publicRoom(room) {
 
 function sendRoom(room) { io.to(room.code).emit("room-state", publicRoom(room)); }
 
+function nextSoloTarget(room) {
+  return room.cores.find((core) => !core.collected) || room.goal;
+}
+
 function stateFor(room, viewer) {
   const now = Date.now();
   const hazards = room.board?.hazards
@@ -86,6 +90,9 @@ function stateFor(room, viewer) {
     trail: room.trail, lives: room.lives, pings: room.pings.filter((ping) => now - ping.at < 30_000),
     cores: room.cores, soloMode: room.soloMode, soloStage: room.soloStage, soloStep: room.soloStep,
     soloPractice: room.soloMode && room.soloStep === 0, soloPingsLeft: room.soloPingsLeft,
+    soloDistanceToCheckpoint: room.soloMode && room.robot && nextSoloTarget(room)
+      ? Math.abs(nextSoloTarget(room).x - room.robot.x) + Math.abs(nextSoloTarget(room).y - room.robot.y)
+      : 0,
     lastEvent: room.lastEvent, myVision: viewer.visionTypes.map((id) => VISION_TYPES.find((type) => type.id === id)).filter(Boolean),
     players: [...room.players.values()].map(publicPlayer), outcome: room.outcome,
   };
@@ -136,8 +143,8 @@ function makeBoard(room) {
 }
 
 function placeCores(room) {
-  const path = room.board.pathTiles.slice(1, -1);
-  const indexes = [0.22, 0.5, 0.78].map((ratio) => Math.min(path.length - 1, Math.floor(path.length * ratio)));
+  const path = room.board.pathTiles;
+  const indexes = [3, 6, 9].map((index) => Math.min(path.length - 2, index));
   const seen = new Set();
   room.cores = indexes.map((index) => path[index]).filter((tile) => {
     const key = `${tile.x},${tile.y}`;
@@ -195,9 +202,14 @@ function rotateCaptain(room, now, first = false) {
 
 function soloLookDuration(step) {
   if (step === 0) return 0;
-  if (step <= 2) return 8_000;
-  if (step <= 4) return 6_000;
-  return 5_000;
+  if (step === 1) return 6_000;
+  if (step === 2) return 5_000;
+  return 4_000;
+}
+
+function soloRunDuration(step) {
+  if (step === 0) return 0;
+  return Math.max(18_000, SOLO_RUN_MS - (step - 1) * 2_000);
 }
 
 function beginSoloLook(room, now) {
@@ -215,12 +227,13 @@ function beginSoloMove(room, now) {
   room.soloStage = "move";
   room.phaseEndsAt = 0;
   room.soloPingsLeft = 2;
-  room.turnEndsAt = room.soloStep === 0 ? 0 : now + SOLO_MOVE_MS;
+  const duration = soloRunDuration(room.soloStep);
+  room.turnEndsAt = duration ? now + duration : 0;
   room.lastEvent = { id: ++room.eventSequence, type: "hide", practice: room.soloStep === 0, at: now };
   sendGame(room);
 }
 
-function nextSoloTurn(room, now) {
+function reachSoloCheckpoint(room, now) {
   room.soloStep += 1;
   if (!room.gameEndsAt) room.gameEndsAt = now + GAME_MS;
   shiftHazards(room);
@@ -264,6 +277,7 @@ function moveRobot(room, player, x, y) {
   const lockedGoal = x === room.goal.x && y === room.goal.y && room.cores.some((core) => !core.collected);
   if (lockedGoal) return { ok: false, error: "The exit is locked. Collect all three signal cores first." };
   player.stats.moves += 1;
+  let reachedCore = false;
   const hazard = room.board.hazards.find((item) => item.x === x && item.y === y);
   if (hazard) {
     hazard.revealed = true; room.lives -= 1; player.stats.mistakes += 1;
@@ -275,12 +289,15 @@ function moveRobot(room, player, x, y) {
     const core = room.cores.find((item) => !item.collected && item.x === x && item.y === y);
     if (core) {
       core.collected = true;
+      reachedCore = true;
       room.lastEvent = { id: ++room.eventSequence, type: "core", x, y, playerId: player.id, at: now };
     } else room.lastEvent = { id: ++room.eventSequence, type: "safe", x, y, playerId: player.id, at: now };
     if (x === room.goal.x && y === room.goal.y) { finishGame(room, true, "The Pals turned every peril into a shared path.", now); return { ok: true }; }
   }
-  if (room.soloMode) nextSoloTurn(room, now);
-  else { shiftHazards(room); rotateCaptain(room, now); sendGame(room); }
+  if (room.soloMode) {
+    if (reachedCore) reachSoloCheckpoint(room, now);
+    else sendGame(room);
+  } else { shiftHazards(room); rotateCaptain(room, now); sendGame(room); }
   return { ok: true };
 }
 
@@ -340,7 +357,7 @@ io.on("connection", (socket) => {
     if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= room.cols || y >= room.rows) return ack({ ok: false });
     if (room.soloMode) {
       if (room.soloStage !== "move") return ack({ ok: false, error: "Memory markers become available after dangers are hidden." });
-      if (room.soloPingsLeft <= 0) return ack({ ok: false, error: "No memory markers left this move." });
+      if (room.soloPingsLeft <= 0) return ack({ ok: false, error: "No memory markers left for this run." });
       room.soloPingsLeft -= 1;
     }
     addPing(room, player, x, y); sendGame(room); ack({ ok: true });
@@ -389,8 +406,8 @@ setInterval(() => {
       else if (room.soloMode && room.soloStage === "move" && room.turnEndsAt && now >= room.turnEndsAt) {
         room.lives -= 1;
         room.lastEvent = { id: ++room.eventSequence, type: "timeout", playerId: room.captainId, at: now };
-        if (room.lives <= 0) finishGame(room, false, "Three missed moves drained BIMO’s signal.", now);
-        else nextSoloTurn(room, now);
+        if (room.lives <= 0) finishGame(room, false, "Three missed runs drained BIMO’s signal.", now);
+        else { shiftHazards(room); beginSoloLook(room, now); }
       } else if (!room.soloMode && now >= room.turnEndsAt) {
         room.lastEvent = { id: ++room.eventSequence, type: "timeout", playerId: room.captainId, at: now };
         rotateCaptain(room, now); sendGame(room);

@@ -17,10 +17,10 @@ Open `http://localhost:3000`. One person can immediately play the complete solo 
 
 ### Solo
 
-1. **LOOK:** Memorize the visible dangers. The first round is untimed practice; later looks shrink from 8 to 5 seconds.
+1. **LOOK:** Memorize the visible dangers and the route to the next core. The first preview is untimed practice; later looks shrink from 6 to 4 seconds.
 2. **HIDE:** Press **Ready** (or let the timer expire) and every danger symbol disappears.
-3. **MOVE:** Use up to two memory markers, then choose one adjacent tile. A mistake costs a life.
-4. The danger pattern shifts after every move. Collect all three signal cores to unlock the exit, then reach it to win.
+3. **RUN:** Use up to two memory markers, then navigate several adjacent moves without seeing the map again. A mistake costs a life.
+4. Each signal core is a checkpoint that reveals a reshuffled map. Collect all three cores to unlock the exit, then reach it to win.
 
 ### Team
 
@@ -45,4 +45,4 @@ The included `render.yaml` defines a free Node web service with a `/health` endp
 
 ## Contest pitch
 
-Most multiplayer games show everyone the same world. PERIL PALS makes synchronization itself the mechanic: each device holds a different piece of the truth. Solo play turns that same hidden-information idea into a tense LOOK–HIDE–MOVE memory loop, so a judge gets a complete challenge immediately. Short missions, rotating authority, shifting maps, guaranteed-solvable routes, live pings, and responsive phone controls make the concept easy to demonstrate and hard to master.
+Most multiplayer games show everyone the same world. PERIL PALS makes synchronization itself the mechanic: each device holds a different piece of the truth. Solo play turns that same hidden-information idea into a tense LOOK–HIDE–RUN memory challenge, so a judge gets a complete game immediately. Checkpoint based memory runs, rotating authority, shifting maps, guaranteed-solvable routes, live pings, and responsive phone controls make the concept easy to demonstrate and hard to master.
