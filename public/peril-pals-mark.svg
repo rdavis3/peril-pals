@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">PERIL PALS signal eye</title>
+  <desc id="desc">A precise cyan and violet eye surrounding two linked signal lenses.</desc>
+  <defs>
+    <linearGradient id="signal" x1="30" y1="56" x2="226" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#64E7E4"/>
+      <stop offset=".55" stop-color="#52D9E8"/>
+      <stop offset="1" stop-color="#AA82FF"/>
+    </linearGradient>
+    <radialGradient id="iris" cx="42%" cy="34%" r="70%">
+      <stop stop-color="#87F5F1"/>
+      <stop offset=".48" stop-color="#52D9E8"/>
+      <stop offset="1" stop-color="#5B8CFF"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <path d="M23 128C48 83 84 59 128 59s80 24 105 69c-25 45-61 69-105 69S48 173 23 128Z" fill="#11152B" fill-opacity=".34" stroke="url(#signal)" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M38 128c22-35 52-53 90-53s68 18 90 53" fill="none" stroke="#EAFDFF" stroke-opacity=".42" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="128" cy="128" r="53" fill="#11152B" stroke="#27345F" stroke-width="7"/>
+  <circle cx="111" cy="128" r="31" fill="url(#iris)" filter="url(#glow)"/>
+  <circle cx="145" cy="128" r="31" fill="#AA82FF" filter="url(#glow)"/>
+  <path d="M128 102c10 5 17 14 17 26s-7 21-17 26c-10-5-17-14-17-26s7-21 17-26Z" fill="#5B8CFF"/>
+  <circle cx="111" cy="128" r="10" fill="#11152B"/>
+  <circle cx="145" cy="128" r="10" fill="#11152B"/>
+  <path d="M119 128h18" fill="none" stroke="#F7FBFF" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="101" cy="116" r="5" fill="#F7FBFF"/>
+  <circle cx="155" cy="116" r="5" fill="#FFD166"/>
+  <path d="M55 72 43 57M201 72l12-15M128 48V28" fill="none" stroke="#FFD166" stroke-width="7" stroke-linecap="round"/>
+</svg>

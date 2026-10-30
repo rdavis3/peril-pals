@@ -16,6 +16,11 @@ let selected = null;
 let clockOffset = 0;
 let soundOn = localStorage.getItem("peril-pals-sound") !== "off";
 let audioContext = null;
+let musicBus = null;
+let musicTimer = null;
+let musicStep = 0;
+let nextMusicTime = 0;
+let noiseBuffer = null;
 let toastTimer = null;
 let eventTimer = null;
 let lastEventId = null;
@@ -24,6 +29,7 @@ let lastCountdown = null;
 function showScreen(name) {
   currentScreen = name;
   Object.entries(screens).forEach(([key, element]) => element.classList.toggle("hidden", key !== name));
+  syncMusic();
 }
 
 function serverNow() { return Date.now() - clockOffset; }
@@ -44,18 +50,130 @@ function eventToast(message, danger = false) {
   eventTimer = setTimeout(() => element.classList.add("hidden"), 2100);
 }
 
+const MUSIC_STEP_SECONDS = 60 / 132 / 4;
+const LEAD_PATTERN = [
+  72, null, 76, 79, 83, null, 79, 76, 74, null, 77, 81, 84, 81, 77, null,
+  69, null, 72, 76, 79, null, 76, 72, 67, 71, 74, 79, 83, 79, 74, null,
+  72, 76, 79, 83, 84, 83, 79, 76, 74, 77, 81, 84, 86, 84, 81, 77,
+  69, 72, 76, 79, 81, 79, 76, 72, 67, 71, 74, 79, 72, null, 71, null,
+];
+const BASS_ROOTS = [36, 41, 33, 43];
+
+function ensureAudio() {
+  const AudioEngine = window.AudioContext || window.webkitAudioContext;
+  if (!AudioEngine) return null;
+  if (!audioContext) {
+    audioContext = new AudioEngine();
+    musicBus = audioContext.createGain();
+    musicBus.gain.value = .68;
+    musicBus.connect(audioContext.destination);
+    noiseBuffer = audioContext.createBuffer(1, Math.floor(audioContext.sampleRate * .06), audioContext.sampleRate);
+    const noise = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noise.length; index += 1) noise[index] = Math.random() * 2 - 1;
+  }
+  if (audioContext.state === "suspended") audioContext.resume();
+  return audioContext;
+}
+
+function midiFrequency(note) { return 440 * (2 ** ((note - 69) / 12)); }
+
+function synthNote(note, startsAt, duration, type, volume) {
+  const context = audioContext;
+  if (!context || !musicBus) return;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(midiFrequency(note), startsAt);
+  gain.gain.setValueAtTime(.0001, startsAt);
+  gain.gain.exponentialRampToValueAtTime(volume, startsAt + .008);
+  gain.gain.exponentialRampToValueAtTime(.0001, startsAt + duration);
+  oscillator.connect(gain).connect(musicBus);
+  oscillator.start(startsAt);
+  oscillator.stop(startsAt + duration + .02);
+}
+
+function drumHit(startsAt, step) {
+  if (!audioContext || !musicBus) return;
+  if (step % 2 === 0 && noiseBuffer) {
+    const source = audioContext.createBufferSource();
+    const filter = audioContext.createBiquadFilter();
+    const gain = audioContext.createGain();
+    source.buffer = noiseBuffer; filter.type = "highpass"; filter.frequency.value = 5200;
+    gain.gain.setValueAtTime(.012, startsAt); gain.gain.exponentialRampToValueAtTime(.0001, startsAt + .035);
+    source.connect(filter).connect(gain).connect(musicBus); source.start(startsAt); source.stop(startsAt + .045);
+  }
+  if (step % 8 === 0) {
+    const kick = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    kick.type = "sine"; kick.frequency.setValueAtTime(105, startsAt); kick.frequency.exponentialRampToValueAtTime(45, startsAt + .11);
+    gain.gain.setValueAtTime(.055, startsAt); gain.gain.exponentialRampToValueAtTime(.0001, startsAt + .12);
+    kick.connect(gain).connect(musicBus); kick.start(startsAt); kick.stop(startsAt + .13);
+  }
+}
+
+function scheduleMusicStep(step, startsAt) {
+  const lead = LEAD_PATTERN[step % LEAD_PATTERN.length];
+  if (lead) synthNote(lead, startsAt, MUSIC_STEP_SECONDS * .82, "square", .019);
+  const stepInBar = step % 16;
+  if (stepInBar % 4 === 0) {
+    const root = BASS_ROOTS[Math.floor((step % 64) / 16)];
+    synthNote(root + (stepInBar === 12 ? 7 : 0), startsAt, MUSIC_STEP_SECONDS * 3.2, "triangle", .052);
+  }
+  drumHit(startsAt, step);
+}
+
+function runMusicScheduler() {
+  if (!audioContext || !musicTimer) return;
+  while (nextMusicTime < audioContext.currentTime + .14) {
+    scheduleMusicStep(musicStep, nextMusicTime);
+    nextMusicTime += MUSIC_STEP_SECONDS;
+    musicStep = (musicStep + 1) % LEAD_PATTERN.length;
+  }
+}
+
+function startMusic() {
+  if (!soundOn || currentScreen === "home" || document.hidden || musicTimer) return;
+  const context = ensureAudio();
+  if (!context) return;
+  if (context.state !== "running") { context.resume().then(startMusic); return; }
+  musicBus.gain.cancelScheduledValues(context.currentTime);
+  musicBus.gain.setTargetAtTime(.68, context.currentTime, .03);
+  musicStep = 0; nextMusicTime = context.currentTime + .06;
+  musicTimer = setInterval(runMusicScheduler, 45);
+  runMusicScheduler();
+  $("#soundButton").dataset.music = "playing";
+}
+
+function stopMusic() {
+  if (musicTimer) clearInterval(musicTimer);
+  musicTimer = null;
+  if (audioContext && musicBus) musicBus.gain.setTargetAtTime(.0001, audioContext.currentTime, .025);
+  $("#soundButton").dataset.music = "stopped";
+}
+
+function syncMusic() { if (soundOn && currentScreen !== "home") startMusic(); else stopMusic(); }
+
+function updateSoundButton() {
+  const button = $("#soundButton");
+  button.textContent = soundOn ? "♫" : "×";
+  button.setAttribute("aria-label", soundOn ? "Mute music" : "Play music");
+  button.setAttribute("aria-pressed", String(soundOn));
+  button.title = soundOn ? "Music on" : "Music off";
+}
+
 function beep(frequency = 520, duration = .08, type = "sine", volume = .06) {
   if (!soundOn) return;
-  audioContext ||= new AudioContext();
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
+  const context = ensureAudio();
+  if (!context) return;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
   oscillator.type = type;
   oscillator.frequency.value = frequency;
-  gain.gain.setValueAtTime(volume, audioContext.currentTime);
-  gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + duration);
-  oscillator.connect(gain).connect(audioContext.destination);
+  gain.gain.setValueAtTime(volume, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
+  oscillator.connect(gain).connect(context.destination);
   oscillator.start();
-  oscillator.stop(audioContext.currentTime + duration);
+  oscillator.stop(context.currentTime + duration);
 }
 
 function playerName() {
@@ -79,6 +197,7 @@ function clearSession() {
 }
 
 function createRoom() {
+  ensureAudio();
   $("#homeError").textContent = "";
   $("#createButton").disabled = true;
   socket.emit("create-room", { name: playerName() }, (result) => {
@@ -89,6 +208,7 @@ function createRoom() {
 }
 
 function joinRoom() {
+  ensureAudio();
   $("#homeError").textContent = "";
   const code = $("#roomCodeInput").value.trim().toUpperCase();
   if (code.length !== 4) return $("#homeError").textContent = "Enter the four-character mission code.";
@@ -444,7 +564,13 @@ $("#moveButton").onclick = () => {
   if (!selected) return;
   socket.emit("move-robot", selected, (result) => { if (!result.ok) toast(result.error || "Move rejected."); else selected = null; });
 };
-$("#soundButton").onclick = () => { soundOn = !soundOn; localStorage.setItem("peril-pals-sound", soundOn ? "on" : "off"); $("#soundButton").textContent = soundOn ? "♪" : "×"; if (soundOn) beep(); };
+$("#soundButton").onclick = () => {
+  soundOn = !soundOn;
+  localStorage.setItem("peril-pals-sound", soundOn ? "on" : "off");
+  updateSoundButton();
+  if (soundOn) { ensureAudio(); startMusic(); beep(660, .08, "square", .035); }
+  else stopMusic();
+};
 
 const howDialog = $("#howDialog");
 $("#howButton").onclick = () => howDialog.showModal();
@@ -454,5 +580,8 @@ $("#gotItButton").onclick = () => howDialog.close();
 $("#playerName").value = localStorage.getItem("peril-pals-name") || "";
 const queryRoom = new URLSearchParams(location.search).get("room");
 if (queryRoom) $("#roomCodeInput").value = queryRoom.toUpperCase().slice(0, 4);
-$("#soundButton").textContent = soundOn ? "♪" : "×";
+document.addEventListener("pointerdown", () => { if (soundOn) { ensureAudio(); syncMusic(); } }, { passive: true });
+document.addEventListener("keydown", () => { if (soundOn) { ensureAudio(); syncMusic(); } });
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopMusic(); else syncMusic(); });
+updateSoundButton();
 setInterval(updateTimers, 100);

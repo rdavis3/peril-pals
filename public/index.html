@@ -4,7 +4,37 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#11152b" />
-    <meta name="description" content="PERIL PALS — a cooperative multiplayer puzzle where every player sees a different danger." />
+    <meta name="description" content="PERIL PALS is a lethal-cute memory game and asymmetric multiplayer puzzle. Look, remember, move—and escape together." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PERIL PALS" />
+    <meta property="og:url" content="https://perilpals.com/" />
+    <meta property="og:title" content="PERIL PALS — Nobody Sees the Whole Truth" />
+    <meta property="og:description" content="Look. Hide. Move. Outsmart a shifting danger grid alone or combine different views with friends." />
+    <meta property="og:image" content="https://perilpals.com/social-preview.gif" />
+    <meta property="og:image:secure_url" content="https://perilpals.com/social-preview.gif" />
+    <meta property="og:image:type" content="image/gif" />
+    <meta property="og:image:width" content="600" />
+    <meta property="og:image:height" content="315" />
+    <meta property="og:image:alt" content="PERIL PALS animated LOOK, HIDE, MOVE game preview" />
+    <meta property="og:image" content="https://perilpals.com/social-preview-animated.webp" />
+    <meta property="og:image:type" content="image/webp" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PERIL PALS animated game-board preview" />
+    <meta property="og:image" content="https://perilpals.com/social-preview.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PERIL PALS — a lethal-cute memory game" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PERIL PALS — Nobody Sees the Whole Truth" />
+    <meta name="twitter:description" content="Look. Hide. Move. Escape a shifting danger grid alone or with friends." />
+    <meta name="twitter:image" content="https://perilpals.com/social-preview.png" />
+    <link rel="image_src" href="https://perilpals.com/social-preview.gif" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <title>PERIL PALS — Nobody Sees the Whole Truth</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +46,7 @@
     <main id="app">
       <section id="homeScreen" class="screen home-screen">
         <div class="home-copy">
-          <div class="logo-eye" aria-hidden="true"><span></span></div>
+          <img class="brand-mark brand-mark-hero" src="/peril-pals-mark.svg" alt="" aria-hidden="true" />
           <p class="eyebrow">A CO-OP GAME OF INCOMPLETE INFORMATION</p>
           <h1>PERIL<span>PALS</span></h1>
           <p class="hero-line">Nobody sees the whole truth.</p>
@@ -74,7 +104,7 @@
 
       <section id="gameScreen" class="screen game-screen hidden">
         <header class="game-header">
-          <div class="brand-mini"><span class="mini-eye"></span> PERIL PALS</div>
+          <div class="brand-mini"><img class="brand-mark brand-mark-mini" src="/peril-pals-mark.svg" alt="" aria-hidden="true" /> PERIL PALS</div>
           <div class="game-stat"><small>MISSION</small><b id="missionTimer">1:45</b></div>
           <div class="game-stat power"><small>SIGNAL CORE</small><b id="livesDisplay">● ● ●</b></div>
           <div class="game-stat cores"><small>CORES FOUND</small><b id="coresDisplay">0 / 3</b></div>
@@ -112,7 +142,7 @@
             <div class="scout-strip"><small>SCOUTS</small><div id="scoutDots"></div></div>
           </aside>
         </div>
-        <div id="countdownOverlay" class="countdown-overlay hidden"><div class="logo-eye"><span></span></div><b id="countdownNumber">3</b><p id="countdownMessage">Different screens. One safe path.</p></div>
+        <div id="countdownOverlay" class="countdown-overlay hidden"><img class="brand-mark brand-mark-countdown" src="/peril-pals-mark.svg" alt="" aria-hidden="true" /><b id="countdownNumber">3</b><p id="countdownMessage">Different screens. One safe path.</p></div>
         <div id="eventToast" class="event-toast hidden" role="status"></div>
       </section>
 
